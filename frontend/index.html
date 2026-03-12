@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>TRAJECTORY.AI — Projectile Simulation</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+  <header>
+    <div class="logo">🎯 TRAJECTORY<span class="red">.AI</span></div>
+    <div class="subtitle">6-DOF RK4 · ML Cd/Cl · Three.js 3D · Real-time Pipeline</div>
+    <div class="live-stats">
+      <span id="stat-density">DENSITY —</span>
+      <span id="stat-mach">MACH —</span>
+      <span id="stat-wind">WIND —</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: INPUTS -->
+    <aside class="panel-left">
+
+      <section class="card">
+        <h3>⚙ Mode</h3>
+        <div class="mode-btns">
+          <button class="mode active" data-mode="ballistic">⚔ BALLISTIC</button>
+          <button class="mode" data-mode="sports">⚽ SPORTS</button>
+          <button class="mode" data-mode="sprinkler">🌾 AGRICULTURE</button>
+          <button class="mode" data-mode="general">⚙ GENERAL</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>📍 Launch Parameters</h3>
+        <div class="grid-2">
+          <label>Latitude (°)<input type="number" id="p-lat"  value="28.6" step="0.1"/></label>
+          <label>Longitude (°)<input type="number" id="p-lon"  value="77.2" step="0.1"/></label>
+          <label>Altitude MSL (m)<input type="number" id="p-alt"  value="200"  step="10"/></label>
+          <label>Azimuth (°)<input type="number" id="p-az"   value="0"    step="1"/></label>
+        </div>
+        <label>Velocity (m/s)
+          <input type="range" id="p-vel" min="0.5" max="2000" step="0.5" value="30"/>
+          <span id="p-vel-v">30 m/s</span>
+        </label>
+        <label>Elevation Angle (°)
+          <input type="range" id="p-ang" min="1" max="89" step="1" value="45"/>
+          <span id="p-ang-v">45°</span>
+        </label>
+      </section>
+
+      <section class="card">
+        <h3>⚙ Projectile</h3>
+        <div class="grid-2">
+          <label>Mass (kg)<input type="number" id="p-mass" value="0.62"  step="0.01"/></label>
+          <label>Area (m²)<input type="number" id="p-area" value="0.045" step="0.001"/></label>
+        </div>
+        <div class="shape-btns">
+          <span class="label">Shape:</span>
+          <button class="shape active" data-shape="sphere">sphere</button>
+          <button class="shape" data-shape="cylinder">cylinder</button>
+          <button class="shape" data-shape="streamlined">streamlined</button>
+          <button class="shape" data-shape="javelin">javelin</button>
+          <button class="shape" data-shape="missile">missile</button>
+          <button class="shape" data-shape="basketball">basketball</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>🌦 Weather</h3>
+        <div class="weather-presets">
+          <button class="wp active" data-preset="0">☀ Clear</button>
+          <button class="wp" data-preset="1">💨 Windy</button>
+          <button class="wp" data-preset="2">⛈ Storm</button>
+          <button class="wp" data-preset="3">🔥 Desert</button>
+          <button class="wp" data-preset="4">❄ Arctic</button>
+          <button class="wp" data-preset="5">🌫 Fog</button>
+          <button class="wp" data-preset="6">🏔 HighAlt</button>
+          <button class="wp" data-preset="7">🌊 Gale</button>
+        </div>
+        <div class="grid-2">
+          <label>Wind Speed (m/s)<input type="number" id="w-spd" value="0"   step="0.5"/></label>
+          <label>Wind Dir (°)<input type="number" id="w-dir" value="0"   step="5"/></label>
+          <label>Temperature (°C)<input type="number" id="w-tmp" value="25"  step="1"/></label>
+          <label>Humidity (%)<input type="number" id="w-hum" value="40"  step="1"/></label>
+          <label>Pressure (Pa)<input type="number" id="w-prs" value="101325" step="100"/></label>
+          <div class="density-box">
+            <div class="label">AIR DENSITY</div>
+            <div id="density-val">—</div>
+            <div class="unit">kg/m³</div>
+          </div>
+        </div>
+      </section>
+
+      <button id="btn-run" class="run-btn">▶  RUN FULL SIMULATION</button>
+      <label class="vtk-check">
+        <input type="checkbox" id="export-vtk"/> Export VTK for ParaView
+      </label>
+    </aside>
+
+    <!-- RIGHT: OUTPUTS -->
+    <main class="panel-right">
+      <div id="empty-state" class="empty">
+        <div class="big-icon">🎯</div>
+        <div>SET PARAMETERS → RUN SIMULATION</div>
+        <div class="pipeline-flow">
+          User Inputs → Weather → Features → ML Model → Physics → 3D View
+        </div>
+      </div>
+
+      <div id="results-panel" style="display:none">
+
+        <!-- Aerodynamics -->
+        <section class="card" id="aero-card">
+          <h3>🤖 ML-Predicted Aerodynamics</h3>
+          <div class="stats-grid-4">
+            <div class="stat" id="s-cd"><div class="label">DRAG Cd</div><div class="val red">—</div></div>
+            <div class="stat" id="s-cl"><div class="label">LIFT Cl</div><div class="val orange">—</div></div>
+            <div class="stat" id="s-regime"><div class="label">REGIME</div><div class="val blue">—</div></div>
+            <div class="stat" id="s-mach"><div class="label">MACH</div><div class="val purple">—</div></div>
+          </div>
+          <div id="aero-source" class="source-tag"></div>
+        </section>
+
+        <!-- 3D Viewport -->
+        <section class="card">
+          <h3>📡 Trajectory Visualization</h3>
+          <div class="view-tabs">
+            <button class="vtab active" data-view="3d">⬡ 3D ORBIT</button>
+            <button class="vtab" data-view="2d">◫ SIDE VIEW</button>
+            <button class="vtab" data-view="top">⊙ TOP-DOWN</button>
+          </div>
+          <div id="viewport-3d" class="viewport"></div>
+          <canvas id="canvas-2d" class="viewport" style="display:none"></canvas>
+          <canvas id="canvas-top" class="viewport" style="display:none"></canvas>
+          <div class="axis-legend" id="legend-3d">
+            <span class="ax red">━ X Downrange</span>
+            <span class="ax green">━ Z Altitude</span>
+            <span class="ax blue">━ Y Lateral</span>
+            <span class="ax yellow">● Apogee</span>
+            <span class="ax red">▼ Impact</span>
+            <span class="ax white">● Live</span>
+          </div>
+        </section>
+
+        <!-- Numerical Results -->
+        <section class="card">
+          <h3>📐 Simulation Results</h3>
+          <div class="stats-grid-3">
+            <div class="stat"><div class="label">RANGE</div><div class="val blue" id="r-range">—</div></div>
+            <div class="stat"><div class="label">MAX HEIGHT</div><div class="val green" id="r-height">—</div></div>
+            <div class="stat"><div class="label">TIME OF FLIGHT</div><div class="val orange" id="r-tof">—</div></div>
+            <div class="stat"><div class="label">IMPACT SPEED</div><div class="val red" id="r-impact">—</div><div class="sub" id="r-impact-kmh">—</div></div>
+            <div class="stat"><div class="label">LATERAL DRIFT</div><div class="val purple" id="r-drift">—</div><div class="sub">wind + Coriolis</div></div>
+            <div class="stat"><div class="label">DOWNRANGE</div><div class="val cyan" id="r-dr">—</div></div>
+          </div>
+        </section>
+
+        <!-- VTK info -->
+        <section class="card" id="vtk-card" style="display:none">
+          <h3>📦 VTK Export</h3>
+          <div id="vtk-info" class="vtk-info"></div>
+          <div class="paraview-tip">
+            Open in ParaView: File → Open → select trajectory.vtk → Apply → Colour by "speed"
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Loading -->
+      <div id="loading" style="display:none" class="loading">
+        <div class="spinner">◈</div>
+        <div id="loading-phase">Running simulation…</div>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/renderer3d.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
